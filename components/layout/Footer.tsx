@@ -24,7 +24,7 @@ export function Footer() {
           {/* Links */}
           <div className="flex items-center gap-3">
             <Link
-              href="https://github.com/nickarndt"
+              href="https://github.com/nickcarndt"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-400 transition-colors hover:border-zinc-700 hover:text-zinc-200"

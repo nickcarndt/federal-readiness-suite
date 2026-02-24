@@ -107,7 +107,7 @@ flowchart LR
 ## Quickstart
 
 ```bash
-git clone https://github.com/nickarndt/federal-readiness-suite.git
+git clone https://github.com/nickcarndt/federal-readiness-suite.git
 cd federal-readiness-suite
 cp .env.example .env
 # Add your Anthropic API key to .env
