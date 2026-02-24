@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   ArrowRight,
   RefreshCw,
@@ -137,7 +138,7 @@ function MetricStat({
 
 export default function EvaluatePage() {
   const router = useRouter();
-  const { intake, setResults, markStepComplete, isHydrated, demoMode } =
+  const { intake, setResults, markStepComplete, isHydrated, demoMode, setDemoMode } =
     useAssessment();
 
   // Left pane state
@@ -186,6 +187,7 @@ export default function EvaluatePage() {
   const handleScenarioChange = (id: string) => {
     setSelectedScenarioId(id);
     setUserEditedPrompt(false);
+    setDemoMode(false);
   };
 
   const handleTaskPromptChange = (value: string) => {
@@ -204,6 +206,7 @@ export default function EvaluatePage() {
   };
 
   const runEvaluation = useCallback(async () => {
+    setDemoMode(false);
     setRunState("streaming");
     setStreamedResponse("");
     setMetrics(null);
@@ -329,7 +332,7 @@ export default function EvaluatePage() {
       setErrorMessage("Evaluation failed. Please try again.");
       setRunState("error");
     }
-  }, [selectedModel, selectedScenarioId, taskPrompt, setResults, demoMode]);
+  }, [selectedModel, selectedScenarioId, taskPrompt, setResults, demoMode, setDemoMode]);
 
   function handleContinue() {
     markStepComplete(2);
@@ -558,8 +561,8 @@ export default function EvaluatePage() {
               {/* Live response */}
               {streamedResponse && (
                 <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-5">
-                  <div className="prose prose-sm prose-invert max-w-none text-zinc-300 [&_h1]:text-zinc-100 [&_h2]:text-zinc-100 [&_h3]:text-zinc-200 [&_strong]:text-zinc-200 [&_code]:text-coral [&_code]:bg-zinc-900 [&_code]:px-1 [&_code]:rounded [&_pre]:bg-zinc-900 [&_pre]:border [&_pre]:border-zinc-800 [&_ul]:text-zinc-300 [&_ol]:text-zinc-300 [&_li]:text-zinc-300">
-                    <ReactMarkdown>{streamedResponse}</ReactMarkdown>
+                  <div className="prose prose-sm prose-invert max-w-none text-zinc-300 [&_h1]:text-zinc-100 [&_h2]:text-zinc-100 [&_h3]:text-zinc-200 [&_strong]:text-zinc-200 [&_code]:text-coral [&_code]:bg-zinc-900 [&_code]:px-1 [&_code]:rounded [&_pre]:bg-zinc-900 [&_pre]:border [&_pre]:border-zinc-800 [&_ul]:text-zinc-300 [&_ol]:text-zinc-300 [&_li]:text-zinc-300 [&_table]:w-full [&_table]:border-collapse [&_table]:text-sm [&_th]:border [&_th]:border-zinc-700 [&_th]:bg-zinc-800 [&_th]:px-3 [&_th]:py-2 [&_th]:text-zinc-200 [&_th]:text-left [&_td]:border [&_td]:border-zinc-700 [&_td]:px-3 [&_td]:py-2 [&_td]:text-zinc-300 [&_tr:nth-child(even)]:bg-zinc-900/40">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamedResponse}</ReactMarkdown>
                     {runState === "streaming" && (
                       <span className="inline-block h-3.5 w-0.5 animate-pulse bg-coral ml-0.5 align-middle" />
                     )}
@@ -613,8 +616,8 @@ export default function EvaluatePage() {
                     </span>
                   </div>
                   <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4 max-h-64 overflow-y-auto">
-                    <div className="prose prose-sm prose-invert max-w-none [&_h1]:text-zinc-100 [&_h2]:text-zinc-100 [&_h3]:text-zinc-200 [&_strong]:text-zinc-200 [&_code]:text-coral [&_code]:bg-zinc-900 [&_code]:px-1 [&_code]:rounded [&_pre]:bg-zinc-900 [&_pre]:border [&_pre]:border-zinc-800 [&_ul]:text-zinc-300 [&_ol]:text-zinc-300 [&_li]:text-zinc-300">
-                      <ReactMarkdown>{streamedResponse}</ReactMarkdown>
+                    <div className="prose prose-sm prose-invert max-w-none [&_h1]:text-zinc-100 [&_h2]:text-zinc-100 [&_h3]:text-zinc-200 [&_strong]:text-zinc-200 [&_code]:text-coral [&_code]:bg-zinc-900 [&_code]:px-1 [&_code]:rounded [&_pre]:bg-zinc-900 [&_pre]:border [&_pre]:border-zinc-800 [&_ul]:text-zinc-300 [&_ol]:text-zinc-300 [&_li]:text-zinc-300 [&_table]:w-full [&_table]:border-collapse [&_table]:text-sm [&_th]:border [&_th]:border-zinc-700 [&_th]:bg-zinc-800 [&_th]:px-3 [&_th]:py-2 [&_th]:text-zinc-200 [&_th]:text-left [&_td]:border [&_td]:border-zinc-700 [&_td]:px-3 [&_td]:py-2 [&_td]:text-zinc-300 [&_tr:nth-child(even)]:bg-zinc-900/40">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamedResponse}</ReactMarkdown>
                     </div>
                   </div>
                 </div>
