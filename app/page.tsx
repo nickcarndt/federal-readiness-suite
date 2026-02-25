@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
@@ -63,6 +63,9 @@ export default function IntakePage() {
   const [errors, setErrors] = useState<Partial<Record<keyof IntakeFormData, string>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Track whether context was ever populated (so we can detect a true reset vs. first-time fill)
+  const contextWasFilled = useRef(false);
+
   // Sync local form state after sessionStorage hydration (handles page refresh in demo mode)
   useEffect(() => {
     if (demoMode && contextIntake.agencyType && !form.agencyType) {
@@ -70,9 +73,12 @@ export default function IntakePage() {
     }
   }, [demoMode, contextIntake, form.agencyType]);
 
-  // Clear local form when context is reset (e.g. Reset & Start Fresh from DemoButton)
+  // Clear local form only when context transitions from filled → empty (i.e. after a reset)
   useEffect(() => {
-    if (!contextIntake.agencyType && form.agencyType) {
+    if (contextIntake.agencyType) {
+      contextWasFilled.current = true;
+    } else if (contextWasFilled.current && !contextIntake.agencyType) {
+      contextWasFilled.current = false;
       setForm({
         agencyType: "",
         missionDescription: "",
@@ -83,7 +89,7 @@ export default function IntakePage() {
       });
       setErrors({});
     }
-  }, [contextIntake.agencyType, form.agencyType]);
+  }, [contextIntake.agencyType]);
 
   const charsRemaining = MAX_MISSION_CHARS - form.missionDescription.length;
 
