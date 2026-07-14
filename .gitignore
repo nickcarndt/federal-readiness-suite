@@ -40,3 +40,6 @@ next-env.d.ts
 .cursor/
 .cursorrules
 *.plan.md
+# Added by Braintrust Wizard
+.env.braintrust
+.braintrust.json
