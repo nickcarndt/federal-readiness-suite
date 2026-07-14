@@ -17,7 +17,7 @@ export function Footer() {
               <span className="text-coral">Solutions Architect</span>
             </p>
             <p className="text-xs text-zinc-600">
-              Built with Claude API · Next.js · MCP
+              Portfolio demo · Claude API · Next.js · Braintrust
             </p>
           </div>
 

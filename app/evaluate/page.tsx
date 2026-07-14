@@ -25,6 +25,8 @@ import type {
   EvaluationResult,
 } from "@/types/assessment";
 import { cn } from "@/lib/utils";
+import { readNdjsonStream } from "@/lib/ndjson-stream";
+import { ScoreResultSchema } from "@/lib/schemas";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -54,8 +56,6 @@ const MODEL_OPTIONS = [
     available: false,
   },
 ];
-
-const METADATA_DELIMITER = "\n---METADATA---\n";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -218,14 +218,9 @@ export default function EvaluatePage() {
     const isCustom = selectedScenarioId === "custom";
 
     try {
-      const evalHeaders: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-      if (demoMode) evalHeaders["x-demo-mode"] = "true";
-
       const response = await fetch("/api/evaluate", {
         method: "POST",
-        headers: evalHeaders,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           scenario: effectiveScenarioId,
           customPrompt: isCustom ? taskPrompt : undefined,
@@ -244,47 +239,33 @@ export default function EvaluatePage() {
         return;
       }
 
-      const reader = response.body!.getReader();
-      const decoder = new TextDecoder();
-      let fullText = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        fullText += decoder.decode(value, { stream: true });
-
-        // Strip metadata from display text while streaming
-        const displayText = fullText.includes(METADATA_DELIMITER)
-          ? fullText.split(METADATA_DELIMITER)[0]
-          : fullText;
-        setStreamedResponse(displayText);
-      }
-
-      // Parse metadata trailer
-      let responseText = fullText;
+      let responseText = "";
       let parsedMetrics: PerformanceMetrics | null = null;
-      if (fullText.includes(METADATA_DELIMITER)) {
-        const parts = fullText.split(METADATA_DELIMITER);
-        responseText = parts[0];
-        try {
-          parsedMetrics = JSON.parse(parts[1]) as PerformanceMetrics;
-        } catch {
-          console.warn("[EVAL] Failed to parse metadata trailer");
+      let streamError: string | null = null;
+
+      await readNdjsonStream(response, (event) => {
+        if (event.type === "text") {
+          responseText += event.delta;
+          setStreamedResponse(responseText);
+        } else if (event.type === "metrics") {
+          parsedMetrics = event.data as PerformanceMetrics;
+        } else if (event.type === "error") {
+          streamError = event.error;
         }
+      });
+
+      if (streamError) {
+        setErrorMessage(streamError);
+        setRunState("error");
+        return;
       }
 
       setMetrics(parsedMetrics);
       setRunState("scoring");
 
-      // Fire scoring API
-      const scoreHeaders: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-      if (demoMode) scoreHeaders["x-demo-mode"] = "true";
-
       const scoreResponse = await fetch("/api/evaluate/score", {
         method: "POST",
-        headers: scoreHeaders,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           taskPrompt,
           response: responseText,
@@ -295,11 +276,15 @@ export default function EvaluatePage() {
         throw new Error("Scoring API failed");
       }
 
-      const scoreResult: ScoreResult = await scoreResponse.json();
+      const rawScore = await scoreResponse.json();
+      const scoreParsed = ScoreResultSchema.safeParse(rawScore);
+      if (!scoreParsed.success) {
+        throw new Error("Scoring response failed schema validation");
+      }
+      const scoreResult: ScoreResult = scoreParsed.data;
       setScores(scoreResult);
       setRunState("complete");
 
-      // Persist to context for Screen 5
       const scenarioLabel =
         FEDERAL_SCENARIOS.find((s) => s.id === selectedScenarioId)?.label ??
         "Custom Task";
@@ -319,20 +304,13 @@ export default function EvaluatePage() {
         scores: scoreResult,
       };
       setResults({ evaluation: evalResult });
-
-      if (process.env.NODE_ENV === "development") {
-        console.log("[EVAL] /evaluate — complete", {
-          overallScore: scoreResult.overallScore,
-          model: selectedModel,
-        });
-      }
     } catch (err: unknown) {
       const error = err as { message?: string };
       console.error("[EVAL] /evaluate — client error", { message: error.message });
       setErrorMessage("Evaluation failed. Please try again.");
       setRunState("error");
     }
-  }, [selectedModel, selectedScenarioId, taskPrompt, setResults, demoMode, setDemoMode]);
+  }, [selectedModel, selectedScenarioId, taskPrompt, setResults, setDemoMode]);
 
   function handleContinue() {
     markStepComplete(2);

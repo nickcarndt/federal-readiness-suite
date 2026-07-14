@@ -36,16 +36,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# internal build / AI tooling artifacts
+# local AI editor state (keep docs/BUILD.md committed — ownership narrative)
 .cursor/
 .cursorrules
-CURSOR-BUILD-GUIDE.md
-DEBUG-LOGGING.md
-DEMO-UX-PROMPT.md
-FINAL-CLEANUP-PROMPT.md
-PDF-EXPORT-PROMPT.md
-SCREEN-2-PROMPT.md
-SCREEN-3-PROMPT.md
-SCREEN-5-PROMPT.md
-federal-readiness-suite-spec.md
 *.plan.md

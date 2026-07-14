@@ -1,3 +1,10 @@
+/**
+ * Best-effort in-memory rate limiter.
+ *
+ * On Vercel serverless, each isolate has its own Map — this does NOT provide
+ * durable cross-instance enforcement. It still throttles bursty single-isolate
+ * abuse and fails closed locally. Documented as best-effort in the README.
+ */
 interface RateLimitEntry {
   count: number;
   resetTime: number;
@@ -6,18 +13,12 @@ interface RateLimitEntry {
 const rateLimitMap = new Map<string, RateLimitEntry>();
 
 const WINDOW_MS = 60 * 60 * 1000; // 1 hour
-const NORMAL_LIMIT = 10;
-const DEMO_LIMIT = 50;
+const LIMIT = 10;
 
-export function rateLimit(
-  req: Request,
-  isDemoMode = false
-): { success: boolean } {
+export function rateLimit(req: Request): { success: boolean } {
   const forwarded = req.headers.get("x-forwarded-for");
   const ip = forwarded ? forwarded.split(",")[0].trim() : "unknown";
-  const limit = isDemoMode ? DEMO_LIMIT : NORMAL_LIMIT;
-  // Separate buckets so demo and normal usage don't share counts
-  const key = `${ip}:${isDemoMode ? "demo" : "normal"}`;
+  const key = ip;
   const now = Date.now();
 
   const entry = rateLimitMap.get(key);
@@ -27,7 +28,7 @@ export function rateLimit(
     return { success: true };
   }
 
-  if (entry.count >= limit) {
+  if (entry.count >= LIMIT) {
     return { success: false };
   }
 

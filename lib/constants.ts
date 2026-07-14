@@ -37,6 +37,7 @@ export const DATA_CLASSIFICATIONS = [
     badgeLabel: "CUI",
     description: "Controlled Unclassified Information",
     badgeColor: "bg-emerald-900/40 text-emerald-400 border-emerald-700",
+    supported: true,
   },
   {
     value: "fouo",
@@ -44,22 +45,37 @@ export const DATA_CLASSIFICATIONS = [
     badgeLabel: "FOUO",
     description: "For Official Use Only",
     badgeColor: "bg-yellow-900/40 text-yellow-400 border-yellow-700",
+    supported: true,
   },
   {
     value: "secret",
     label: "Secret",
     badgeLabel: "SECRET",
-    description: "Classified — Secret",
+    description: "Classified — Secret (not supported in this demo)",
     badgeColor: "bg-orange-900/40 text-orange-400 border-orange-700",
+    supported: false,
   },
   {
     value: "top-secret",
     label: "Top Secret / SCI",
     badgeLabel: "TS/SCI",
-    description: "Classified — TS/SCI",
+    description: "Classified — TS/SCI (not supported in this demo)",
     badgeColor: "bg-red-900/40 text-red-400 border-red-700",
+    supported: false,
   },
 ] as const;
+
+/** Classifications this demo will assess (API-enforced). */
+export const ALLOWED_DATA_CLASSIFICATIONS = DATA_CLASSIFICATIONS.filter(
+  (c) => c.supported
+);
+
+export const BLOCKED_DATA_CLASSIFICATIONS = new Set(
+  DATA_CLASSIFICATIONS.filter((c) => !c.supported).map((c) => c.value)
+);
+
+export const CLASSIFICATION_REFUSAL_MESSAGE =
+  "Secret and Top Secret / SCI workloads require separately authorized classified environments. This assessment only covers Unclassified/CUI and FOUO pathways (e.g. Bedrock GovCloud FedRAMP High for approved model versions).";
 
 export const COMPLIANCE_REQUIREMENTS = [
   { id: "fedramp-high", label: "FedRAMP High" },
@@ -89,6 +105,38 @@ export const CLAUDE_MODEL_PRICING = {
   sonnet: { inputPerMillion: 3, outputPerMillion: 15 },
   haiku: { inputPerMillion: 0.25, outputPerMillion: 1.25 },
 } as const;
+
+/** Token / latency ceilings for all Claude calls. */
+export const LLM_LIMITS = {
+  assessMaxTokens: 4096,
+  evaluateMaxTokens: 2048,
+  scoreMaxTokens: 1024,
+  roadmapMaxTokens: 4096,
+  /** Wall-clock timeout per model call (ms). */
+  timeoutMs: 90_000,
+} as const;
+
+/** Deterministic judge rubric — do not trust the model to average these. */
+export const SCORE_WEIGHTS = {
+  accuracy: 0.4,
+  completeness: 0.25,
+  safety: 0.25,
+  tone: 0.1,
+} as const;
+
+export function computeOverallScore(scores: {
+  accuracy: number;
+  completeness: number;
+  safety: number;
+  tone: number;
+}): number {
+  const weighted =
+    scores.accuracy * SCORE_WEIGHTS.accuracy +
+    scores.completeness * SCORE_WEIGHTS.completeness +
+    scores.safety * SCORE_WEIGHTS.safety +
+    scores.tone * SCORE_WEIGHTS.tone;
+  return Math.round(Math.min(100, Math.max(0, weighted)));
+}
 
 export const COMPLIANCE_STATUS = {
   "fedramp-high": {

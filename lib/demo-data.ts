@@ -1,4 +1,4 @@
-import type { IntakeFormData, AssessmentResults } from "@/types/assessment";
+import type { IntakeFormData } from "@/types/assessment";
 
 // Full HHS Medicare eligibility scenario — pre-configured for the demo button.
 // Values must match the IDs defined in lib/constants.ts (not display labels).
@@ -23,13 +23,3 @@ export const DEMO_INTAKE: IntakeFormData = {
   ],
   estimatedVolume: "100k-1m",
 };
-
-// Populate with cached results after a real run-through to enable instant Quick Tour
-export const DEMO_RESULTS: AssessmentResults = {
-  architecture: undefined,
-  evaluation: undefined,
-  roadmap: undefined,
-};
-
-// All 5 steps complete (0-indexed): Intake, Architecture, Evaluation, Compliance, Roadmap
-export const DEMO_COMPLETED_STEPS = [0, 1, 2, 3, 4];

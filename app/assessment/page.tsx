@@ -21,6 +21,7 @@ import { ArchitectureDiagram } from "@/components/screens/ArchitectureDiagram";
 import type { ArchitectureRecommendation, KeyConsideration } from "@/types/assessment";
 import { cn } from "@/lib/utils";
 import { AGENCY_TYPES } from "@/lib/constants";
+import { readNdjsonStream } from "@/lib/ndjson-stream";
 
 type StreamState = "idle" | "streaming" | "complete" | "error";
 
@@ -120,8 +121,14 @@ function StatCard({
 
 export default function AssessmentPage() {
   const router = useRouter();
-  const { intake, setResults, markStepComplete, isHydrated, demoMode } =
-    useAssessment();
+  const {
+    intake,
+    results,
+    setResults,
+    markStepComplete,
+    isHydrated,
+    demoMode,
+  } = useAssessment();
 
   const [streamedText, setStreamedText] = useState("");
   const [result, setResult] = useState<ArchitectureRecommendation | null>(null);
@@ -136,21 +143,10 @@ export default function AssessmentPage() {
     setStreamState("streaming");
     hasFired.current = true;
 
-    if (process.env.NODE_ENV === "development") {
-      console.log("[NAV] /assessment — starting assessment", {
-        agency: intake.agencyType,
-      });
-    }
-
     try {
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-      if (demoMode) headers["x-demo-mode"] = "true";
-
       const response = await fetch("/api/assess", {
         method: "POST",
-        headers,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(intake),
       });
 
@@ -159,57 +155,54 @@ export default function AssessmentPage() {
         const msg =
           response.status === 429
             ? "Rate limit exceeded. Please wait before trying again."
-            : errorData.error ?? "Something went wrong. Please try again.";
+            : (errorData as { error?: string }).error ??
+              "Something went wrong. Please try again.";
         setErrorMessage(msg);
         setStreamState("error");
         return;
       }
 
-      const reader = response.body!.getReader();
-      const decoder = new TextDecoder();
-      let fullText = "";
+      let validated: ArchitectureRecommendation | null = null;
+      let streamError: string | null = null;
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        fullText += decoder.decode(value, { stream: true });
-        setStreamedText(fullText);
+      await readNdjsonStream(response, (event) => {
+        if (event.type === "partial") {
+          setStreamedText(JSON.stringify(event.data, null, 2));
+        } else if (event.type === "result") {
+          validated = event.data as ArchitectureRecommendation;
+        } else if (event.type === "error") {
+          streamError = event.error;
+        }
+      });
+
+      if (streamError) {
+        setErrorMessage(streamError);
+        setStreamState("error");
+        return;
       }
 
-      if (process.env.NODE_ENV === "development") {
-        console.log("[PERF] /assessment — stream complete", {
-          chars: fullText.length,
-        });
+      if (!validated) {
+        setErrorMessage(
+          "Assessment completed without a validated result. Please try again."
+        );
+        setStreamState("error");
+        return;
       }
 
-      // Strip markdown code fences if Claude wrapped the JSON (e.g. ```json ... ```)
-      const sanitized = fullText
-        .replace(/^```(?:json)?\s*/i, "")
-        .replace(/\s*```\s*$/, "")
-        .trim();
-
-      // Parse complete JSON
-      const parsed: ArchitectureRecommendation = JSON.parse(sanitized);
-      setResult(parsed);
-      setResults({ architecture: parsed });
+      setResult(validated);
+      setResults({ architecture: validated });
       setStreamState("complete");
-
-      if (process.env.NODE_ENV === "development") {
-        console.log("[NAV] /assessment — result rendered", {
-          model: parsed.recommendedModel.modelId,
-        });
-      }
     } catch (err: unknown) {
       const error = err as { message?: string };
       console.error("[CLAUDE] /assessment — client error", {
         message: error.message,
       });
       setErrorMessage(
-        "Failed to parse the assessment response. Please try again."
+        "Failed to process the assessment response. Please try again."
       );
       setStreamState("error");
     }
-  }, [intake, setResults, demoMode]);
+  }, [intake, setResults]);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -217,10 +210,23 @@ export default function AssessmentPage() {
       router.replace("/");
       return;
     }
+    // Serve cached result on remount — do not silently re-spend tokens.
+    if (results.architecture && !hasFired.current) {
+      setResult(results.architecture);
+      setStreamState("complete");
+      hasFired.current = true;
+      return;
+    }
     if (!hasFired.current) {
       runAssessment();
     }
-  }, [intake.agencyType, isHydrated, router, runAssessment]);
+  }, [
+    intake.agencyType,
+    isHydrated,
+    router,
+    runAssessment,
+    results.architecture,
+  ]);
 
   function handleContinue() {
     markStepComplete(1);
@@ -561,21 +567,31 @@ export default function AssessmentPage() {
                 Test Claude against a real scenario from your domain
               </p>
             </div>
-            <Button
-              onClick={handleContinue}
-              className={cn(
-                "group w-full sm:w-auto px-8 py-3 text-base font-semibold",
-                "bg-coral hover:bg-coral-hover text-white",
-                "border border-coral/50 hover:border-coral-hover",
-                "shadow-lg shadow-coral/20 hover:shadow-coral/30",
-                "transition-all duration-200"
-              )}
-            >
-              <span className="flex items-center gap-2">
-                Try Live Evaluation
-                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-              </span>
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <Button
+                onClick={runAssessment}
+                variant="outline"
+                className="border-zinc-700 text-zinc-300 hover:bg-zinc-800 gap-2"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Regenerate
+              </Button>
+              <Button
+                onClick={handleContinue}
+                className={cn(
+                  "group w-full sm:w-auto px-8 py-3 text-base font-semibold",
+                  "bg-coral hover:bg-coral-hover text-white",
+                  "border border-coral/50 hover:border-coral-hover",
+                  "shadow-lg shadow-coral/20 hover:shadow-coral/30",
+                  "transition-all duration-200"
+                )}
+              >
+                <span className="flex items-center gap-2">
+                  Try Live Evaluation
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                </span>
+              </Button>
+            </div>
           </div>
         </div>
       </div>

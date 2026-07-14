@@ -1,4 +1,5 @@
-import Anthropic from "@anthropic-ai/sdk";
-
-// Singleton Anthropic client — reads ANTHROPIC_API_KEY from environment
-export const anthropic = new Anthropic();
+/**
+ * @deprecated Import from `@/lib/llm` instead.
+ * Kept as a thin re-export so older imports do not break mid-refactor.
+ */
+export { getModel, streamText, generateText } from "@/lib/llm";

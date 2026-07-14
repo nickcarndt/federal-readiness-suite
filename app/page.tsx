@@ -33,14 +33,15 @@ import {
   DATA_CLASSIFICATIONS,
   COMPLIANCE_REQUIREMENTS,
   VOLUME_OPTIONS,
+  BLOCKED_DATA_CLASSIFICATIONS,
+  CLASSIFICATION_REFUSAL_MESSAGE,
 } from "@/lib/constants";
 import type { IntakeFormData } from "@/types/assessment";
 import { cn } from "@/lib/utils";
+import { MAX_MISSION_CHARS } from "@/lib/schemas";
 
 const MISSION_PLACEHOLDER =
   "We process 50,000 FOIA requests annually with a 90-day backlog. We need to automate document review and redaction while maintaining compliance with Privacy Act requirements.";
-
-const MAX_MISSION_CHARS = 500;
 
 export default function IntakePage() {
   const router = useRouter();
@@ -120,6 +121,8 @@ export default function IntakePage() {
     }
     if (!form.dataClassification) {
       newErrors.dataClassification = "Please select a data classification level.";
+    } else if (BLOCKED_DATA_CLASSIFICATIONS.has(form.dataClassification as "secret" | "top-secret")) {
+      newErrors.dataClassification = CLASSIFICATION_REFUSAL_MESSAGE;
     }
     if (!form.estimatedVolume) {
       newErrors.estimatedVolume = "Please select an estimated monthly volume.";
@@ -128,6 +131,10 @@ export default function IntakePage() {
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   }
+
+  const classificationBlocked = BLOCKED_DATA_CLASSIFICATIONS.has(
+    form.dataClassification as "secret" | "top-secret"
+  );
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -396,13 +403,16 @@ export default function IntakePage() {
                 {DATA_CLASSIFICATIONS.map((classification) => {
                   const isSelected =
                     form.dataClassification === classification.value;
+                  const isBlocked = !classification.supported;
                   return (
                     <label
                       key={classification.value}
                       className={cn(
                         "flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-all",
-                        isSelected
+                        isSelected && !isBlocked
                           ? "border-coral/40 bg-coral/5"
+                          : isSelected && isBlocked
+                          ? "border-red-500/40 bg-red-500/5"
                           : "border-zinc-800 bg-zinc-900/50 hover:border-zinc-700"
                       )}
                     >
@@ -429,6 +439,11 @@ export default function IntakePage() {
                           >
                             {classification.badgeLabel}
                           </span>
+                          {isBlocked && (
+                            <span className="inline-flex items-center rounded-full border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-[10px] font-bold tracking-wide text-red-400">
+                              Refused
+                            </span>
+                          )}
                         </div>
                         <p className="mt-0.5 text-xs text-zinc-500">
                           {classification.description}
@@ -438,9 +453,11 @@ export default function IntakePage() {
                   );
                 })}
               </RadioGroup>
-              {errors.dataClassification && (
-                <div className="mt-2">
-                  <FieldError message={errors.dataClassification} />
+              {(errors.dataClassification || classificationBlocked) && (
+                <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/5 p-3">
+                  <p className="text-xs text-red-300 leading-relaxed">
+                    {errors.dataClassification ?? CLASSIFICATION_REFUSAL_MESSAGE}
+                  </p>
                 </div>
               )}
             </div>
@@ -572,7 +589,7 @@ export default function IntakePage() {
 
                 <Button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || classificationBlocked}
                   className={cn(
                     "group relative w-full sm:w-auto px-8 py-3 text-base font-semibold",
                     "bg-coral hover:bg-coral-hover text-white",
